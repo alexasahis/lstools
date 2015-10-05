@@ -159,23 +159,23 @@ monitor_temperature()
 	# HDDTEMP2=50
 	#
 
-	HDDTEMP1=0
+	HDDCURRTEMP1=0
 
-	HDDTEMP2=0
+	HDDCURRTEMP2=0
 	
 	# Retrieve HDD temp
 	# HDDTEMP=$(smartctl -d marvell /dev/sda --all -T permissive | grep "^194" | sed -re 's/^.* ([0-9]+)( .*)?$/\1/')
 	# [ -b /dev/sda ] && HDDTEMP1=$(smartctl /dev/sda --all | awk '$1 = "194" {print $10}')
 	# [ -b /dev/sdb ] && HDDTEMP2=$(smartctl /dev/sdb --all | awk '$1 = "194" {print $10}')
-	[ -b /dev/sda ] && HDDTEMP1=$(smartctl /dev/sda --all -T permissive | grep "^194" | awk '$1 = "194" {print $10}')
-	[ -b /dev/sdb ] && HDDTEMP2=$(smartctl /dev/sdb --all -T permissive | grep "^194" | awk '$1 = "194" {print $10}')
+	[ -b /dev/sda ] && HDD_CURR_TEMP1=$(smartctl /dev/sda --all -T permissive | grep "^194" | awk '$1 = "194" {print $10}')
+	[ -b /dev/sdb ] && HDD_CURR_TEMP2=$(smartctl /dev/sdb --all -T permissive | grep "^194" | awk '$1 = "194" {print $10}')
 
 	
 	# Get max temp
-	if [ $HDDTEMP1 -gt $HDDTEMP2 ]; then
-		HDDTEMP=$HDDTEMP1
+	if [ $HDD_CURR_TEMP1 -gt $HDD_CURR_TEMP2 ]; then
+		HDDTEMP=$HDD_CURR_TEMP1
 	else
-		HDDTEMP=$HDDTEMP2
+		HDDTEMP=$HDD_CURR_TEMP2
 	fi
 
 	# Change fan speed accordingly
