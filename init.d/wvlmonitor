@@ -107,10 +107,12 @@ led_value()
 
 enable_gpio()
 {
-	#gpio_config enable ${GPIO_PWR_SW} input
-	#gpio_config enable ${GPIO_AUT_SW} input
-	#gpio_config enable ${GPIO_FAN_STAT} input
-	#gpio_config enable ${GPIO_FAN_LO} output
+	gpio_config enable ${GPIO_PWR_SW} input
+	gpio_config enable ${GPIO_AUT_SW} input
+	gpio_config enable ${GPIO_FAN_STAT} input
+	gpio_config enable ${GPIO_FAN_LO} output
+	gpio_config enable ${GPIO_FAN_HI} output
+
 	gpio_config enable ${GPIO_LED_POWER} output
 	gpio_config enable ${GPIO_LED_INFO} output
 	gpio_config enable ${GPIO_LED_ALARM} output
@@ -122,11 +124,12 @@ enable_gpio()
 
 disable_gpio()
 {
-	#gpio_config disable ${GPIO_PWR_SW}
-	#gpio_config disable ${GPIO_AUT_SW}
-	#gpio_config disable ${GPIO_FAN_STAT}
-	#gpio_config disable ${GPIO_FAN_LO}
-	#gpio_config disable ${GPIO_FAN_HI}
+	gpio_config disable ${GPIO_PWR_SW}
+	gpio_config disable ${GPIO_AUT_SW}
+	gpio_config disable ${GPIO_FAN_STAT}
+	gpio_config disable ${GPIO_FAN_LO}
+	gpio_config disable ${GPIO_FAN_HI}
+
 	gpio_config disable ${GPIO_LED_POWER} output
 	gpio_config disable ${GPIO_LED_INFO} output
 	gpio_config disable ${GPIO_LED_ALARM} output
@@ -140,13 +143,14 @@ disable_gpio()
 fix_leds_status()
 {
 	led_value on ${GPIO_LED_POWER}
-	led_value off ${GPIO_LED_INFO}
-	led_value off ${GPIO_LED_ALARM}
-	led_value off ${GPIO_LED_FUNC_RED}
-	led_value off ${GPIO_LED_FUNC_BLUE}
-	led_value off ${GPIO_LED_HDDERR0}
-	led_value off ${GPIO_LED_HDDERR1}
+	led_value on ${GPIO_LED_INFO}
+	led_value on ${GPIO_LED_ALARM}
+	led_value on ${GPIO_LED_FUNC_RED}
+	led_value on ${GPIO_LED_FUNC_BLUE}
+	led_value on ${GPIO_LED_HDDERR0}
+	led_value on ${GPIO_LED_HDDERR1}
 }
+
 # Monitor HDD temperature & control fan speed
 monitor_temperature()
 {
@@ -159,9 +163,9 @@ monitor_temperature()
 	# HDDTEMP2=50
 	#
 
-	HDDCURRTEMP1=0
+	HDD_CURR_TEMP1=0
 
-	HDDCURRTEMP2=0
+	HDD_CURR_TEMP2=0
 	
 	# Retrieve HDD temp
 	# HDDTEMP=$(smartctl -d marvell /dev/sda --all -T permissive | grep "^194" | sed -re 's/^.* ([0-9]+)( .*)?$/\1/')
@@ -198,6 +202,57 @@ monitor_temperature()
 	fi
 }
 
+monitor_temperature2()
+{
+	#
+	# Default settings for lsmonitor
+	#
+	# HDD temperature thresholds
+	# HDDTEMP0=40
+	# HDDTEMP1=45
+	# HDDTEMP2=50
+	#
+
+	HDD_CURR_TEMP1=0
+
+	HDD_CURR_TEMP2=0
+	
+	# Retrieve HDD temp
+	# HDDTEMP=$(smartctl -d marvell /dev/sda --all -T permissive | grep "^194" | sed -re 's/^.* ([0-9]+)( .*)?$/\1/')
+	# [ -b /dev/sda ] && HDDTEMP1=$(smartctl /dev/sda --all | awk '$1 = "194" {print $10}')
+	# [ -b /dev/sdb ] && HDDTEMP2=$(smartctl /dev/sdb --all | awk '$1 = "194" {print $10}')
+	[ -b /dev/sda ] && HDD_CURR_TEMP1=$(smartctl /dev/sda --all -T permissive | grep "^194" | awk '$1 = "194" {print $10}')
+	[ -b /dev/sdb ] && HDD_CURR_TEMP2=$(smartctl /dev/sdb --all -T permissive | grep "^194" | awk '$1 = "194" {print $10}')
+
+	
+	# Get max temp
+	if [ $HDD_CURR_TEMP1 -gt $HDD_CURR_TEMP2 ]; then
+		HDDTEMP=$HDD_CURR_TEMP1
+		echo HDD /dev/sda Temprature = $HDD_CURR_TEMP1 °C
+	else
+		HDDTEMP=$HDD_CURR_TEMP2
+		echo HDD /dev/sdb Temprature = $HDD_CURR_TEMP2 °C
+	fi
+
+	# Change fan speed accordingly
+	if [ $HDDTEMP -le $HDDTEMP0 ] ; then
+		# off
+		echo 1 > /sys/class/gpio/gpio${GPIO_FAN_LO}/value
+		echo 1 > /sys/class/gpio/gpio${GPIO_FAN_HI}/value
+	elif [ $HDDTEMP -le $HDDTEMP1 ] ; then
+		# slow
+		echo 0 > /sys/class/gpio/gpio${GPIO_FAN_LO}/value
+		echo 1 > /sys/class/gpio/gpio${GPIO_FAN_HI}/value
+	elif [ $HDDTEMP -le $HDDTEMP2 ] ; then
+		# medium
+		echo 1 > /sys/class/gpio/gpio${GPIO_FAN_LO}/value
+		echo 0 > /sys/class/gpio/gpio${GPIO_FAN_HI}/value
+	else
+		# fast
+		echo 0 > /sys/class/gpio/gpio${GPIO_FAN_LO}/value
+		echo 0 > /sys/class/gpio/gpio${GPIO_FAN_HI}/value
+	fi
+}
 
 # Control LS switch status to power down the unit
 lsmonitor_daemon()
@@ -273,8 +328,11 @@ case $1 in
 		$0 stop && sleep 2 && $0 start
   		;;
 
+	status)
+			monitor_temperature2
+  		;;
 	*)
-		echo "Usage: $0 {start|stop|restart|force-reload}"
+		echo "Usage: $0 {start|stop|restart|force-reload|status}"
 		exit 2
 		;;
 esac
